@@ -1,6 +1,6 @@
 import SHA256 from 'crypto-js/sha256';
 
-class Block {
+export class Block {
     index: number;
     timestamp: number;
     data: any;
@@ -18,7 +18,7 @@ class Block {
     }
 
     calculateHash(): string {
-        return SHA256(this.index + this.timestamp + JSON.stringify(this.data) + this.previousHash).toString();
+        return SHA256(this.index + this.timestamp + JSON.stringify(this.data) + this.previousHash + this.nonce).toString();
     }
 
     mineBlock(difficulty: number): void {
@@ -26,11 +26,11 @@ class Block {
             this.nonce++;
             this.hash = this.calculateHash();
         }
-        console.log('Block Mined: ' + this.hash);
+
     }
 }
 
-class Blockchain {
+export class Blockchain {
     chain: Block[];
     difficulty: number;
 
@@ -71,3 +71,4 @@ class Blockchain {
 }
 
 export default Blockchain;
+export type { Block as BlockType };

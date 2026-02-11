@@ -1,65 +1,134 @@
-import Image from "next/image";
+'use client';
+
+import { useState, Suspense } from 'react';
+import dynamic from 'next/dynamic';
+import Header from '@/app/components/Header';
+import StatsDashboard from '@/app/components/StatsDashboard';
+import BlockDetailPanel from '@/app/components/BlockDetailPanel';
+import { useBlockchain } from '@/app/context/BlockchainContext';
+import { Button } from '@/components/ui/button';
+import { RotateCcw, Infinity as InfinityIcon, Loader2, MousePointerClick } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Dynamic import for Three.js scene (no SSR — WebGL is client-only)
+const BlockchainScene = dynamic(() => import('@/app/components/BlockchainScene'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full w-full" style={{ background: 'linear-gradient(180deg, #030014 0%, #0d0628 40%, #020a1a 100%)' }}>
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="h-8 w-8 text-neon-cyan animate-spin" />
+        <p className="text-sm text-muted-foreground">Loading 3D scene…</p>
+      </div>
+    </div>
+  ),
+});
 
 export default function Home() {
+  const { chain, isValid, autoMineFrom, isMining } = useBlockchain();
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  const firstInvalidIndex = chain.findIndex((block, i) => {
+    if (i === 0) return block.hash !== block.calculateHash();
+    const prev = chain[i - 1];
+    return block.hash !== block.calculateHash() || block.previousHash !== prev.hash;
+  });
+
+  const selectedBlock = selectedIndex !== null ? chain[selectedIndex] : null;
+  const selectedPrevBlock = selectedIndex !== null && selectedIndex > 0 ? chain[selectedIndex - 1] : null;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="relative h-screen w-screen overflow-hidden">
+      {/* Full-screen 3D Canvas */}
+      <div className="absolute inset-0 z-0">
+        <Suspense fallback={null}>
+          <BlockchainScene
+            chain={chain}
+            selectedIndex={selectedIndex}
+            onSelectBlock={setSelectedIndex}
+          />
+        </Suspense>
+      </div>
+
+      {/* HTML Overlays */}
+      <div className="absolute inset-0 z-10 pointer-events-none flex flex-col">
+        {/* Top: Header */}
+        <div className="pointer-events-auto shrink-0">
+          <Header />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Middle area */}
+        <div className="flex-1 relative">
+          {/* Auto-Mine banner — floating top center */}
+          <AnimatePresence>
+            {!isValid && firstInvalidIndex >= 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                className="pointer-events-auto absolute top-3 left-1/2 -translate-x-1/2 w-auto max-w-sm z-20"
+              >
+                <div className="glass-card rounded-xl overflow-hidden">
+                  <div className="h-px bg-gradient-to-r from-transparent via-red-500/30 to-transparent" />
+                  <div className="flex items-center gap-3 px-3 py-2">
+                    <InfinityIcon className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                    <p className="text-[11px] text-red-300/80 whitespace-nowrap">
+                      Block <span className="font-semibold text-red-400">#{firstInvalidIndex}</span> broken
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => autoMineFrom(firstInvalidIndex)}
+                      disabled={isMining}
+                      className="gap-1 border-red-500/20 text-red-400 hover:bg-red-500/10 text-[11px] h-6 px-2 shrink-0"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Fix
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Hint — center */}
+          <AnimatePresence>
+            {selectedIndex === null && chain.length <= 3 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.6 }}
+                exit={{ opacity: 0 }}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none"
+              >
+                <div className="flex flex-col items-center gap-2 text-muted-foreground/40">
+                  <MousePointerClick className="h-5 w-5" />
+                  <p className="text-[11px]">Click a block to inspect</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      </main>
+
+        {/* Bottom: Compact stats */}
+        <div className="pointer-events-auto shrink-0 px-3 pb-3">
+          <div className="mx-auto max-w-xl">
+            <StatsDashboard />
+          </div>
+        </div>
+      </div>
+
+      {/* Block Detail Panel */}
+      <AnimatePresence>
+        {selectedBlock && selectedIndex !== null && (
+          <BlockDetailPanel
+            key={selectedIndex}
+            block={selectedBlock}
+            previousBlock={selectedPrevBlock}
+            index={selectedIndex}
+            onClose={() => setSelectedIndex(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
